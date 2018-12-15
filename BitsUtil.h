@@ -21,7 +21,7 @@ namespace CuckooHash {
             x++;
             return x;
         }
-    };
+    };  // class BitsUtil
 
 }   // namespace CuckooHash
 

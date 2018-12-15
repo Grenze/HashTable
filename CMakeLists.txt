@@ -3,4 +3,4 @@ project(CuckooHash)
 
 set(CMAKE_CXX_STANDARD 17)
 
-add_executable(CuckooHash main.cpp BitsUtil.h HashUtil.cpp HashUtil.h)
+add_executable(CuckooHash main.cpp BitsUtil.h HashUtil.cpp HashUtil.h PrintUtil.h BaseTable.cpp BaseTable.h)
