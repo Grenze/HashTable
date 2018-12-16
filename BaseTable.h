@@ -9,16 +9,20 @@
 #include <cstdint>
 #include <sstream>
 
+#include "BaseTable.h"
+
 namespace CuckooHash{
-    template <size_t bits_per_tag>
+    template <size_t bits_per_tag, size_t associativity>
     class BaseTable {
-        static const size_t kTagsPerBucket = 4;
+        static const size_t kTagsPerBucket = associativity;
         //plus 7 to make sure there is enough space per Bucket to store tags
+        //when bits_per_tag = 1
         static const size_t kBytesPerBucket =
                 (bits_per_tag * kTagsPerBucket + 7) >> 3;
-        static const uint32_t kTagMask = (1ULL << bits_per_tag) - 1;
+        //type of Tag is pointer which points to the data
+        //static const uint32_t kTagMask = (1ULL << bits_per_tag) - 1;
         // NOTE: accommodate extra buckets if necessary to avoid overrun
-        // as we always read a uint64
+        // as we always read a uint64, cache friendly
         static const size_t kPaddingBuckets =
                 ((((kBytesPerBucket + 7) / 8) * 8) - 1) / kBytesPerBucket;
 
@@ -45,9 +49,9 @@ namespace CuckooHash{
             return num_buckets_;
         }
 
-        uint32_t TagMask() const{
+        /*uint32_t TagMask() const{
             return kTagMask;
-        }
+        }*/
 
         size_t SizeInBytes() const {
             return kBytesPerBucket * num_buckets_;
@@ -67,9 +71,9 @@ namespace CuckooHash{
         }
 
         // read tag from pos(i,j)
-        inline uint32_t ReadTag(const size_t i, const size_t j) const {
+        inline uint64_t ReadTag(const size_t i, const size_t j) const {
             const char *p = buckets_[i].bits_;
-            uint32_t tag;
+            uint64_t tag;
             /* following code only works for little-endian */
             if (bits_per_tag == 2) {
                 tag = *((uint8_t *)p) >> (j * 2);
@@ -87,17 +91,20 @@ namespace CuckooHash{
                 tag = *((uint16_t *)p);
             } else if (bits_per_tag == 32) {
                 tag = ((uint32_t *)p)[j];
+            } else if (bits_per_tag == 64) {
+                tag = ((uint64_t *)p)[j];
             }
             //uint32_t raw data shold be masked
-            return tag & kTagMask;
+            //return tag & kTagMask;
+            return tag;
         }
 
         // write tag to pos(i,j)
-        inline void WriteTag(const size_t i, const size_t j, const uint32_t t) {
+        inline void WriteTag(const size_t i, const size_t j, const uint64_t t) {
             char *p = buckets_[i].bits_;
             //cout<<(t==(t&kTagMask)) <<endl;
             //raw tag had been masked before passed in
-            uint32_t tag = t /*& kTagMask*/;
+            uint64_t tag = t /*& kTagMask*/;
             /* following code only works for little-endian */
             if (bits_per_tag == 2) {
                 *((uint8_t *)p) |= tag << (2 * j);
@@ -125,11 +132,13 @@ namespace CuckooHash{
                 ((uint16_t *)p)[j] = tag;
             } else if (bits_per_tag == 32) {
                 ((uint32_t *)p)[j] = tag;
+            } else if (bits_per_tag == 64){
+                ((uint64_t *)p)[j] = tag;
             }
         }
 
         inline bool FindTagInBuckets(const size_t i1, const size_t i2,
-                                     const uint32_t tag) const {
+                                     const uint64_t tag) const {
             const char *p1 = buckets_[i1].bits_;
             const char *p2 = buckets_[i2].bits_;
 
@@ -155,7 +164,7 @@ namespace CuckooHash{
             }
         }
 
-        inline bool FindTagInBucket(const size_t i, const uint32_t tag) const {
+        inline bool FindTagInBucket(const size_t i, const uint64_t tag) const {
             // caution: unaligned access & assuming little endian
             if (bits_per_tag == 4 && kTagsPerBucket == 4) {
                 const char *p = buckets_[i].bits_;
@@ -183,7 +192,7 @@ namespace CuckooHash{
             }
         }
 
-        inline bool DeleteTagFromBucket(const size_t i, const uint32_t tag) {
+        inline bool DeleteTagFromBucket(const size_t i, const uint64_t tag) {
             for (size_t j = 0; j < kTagsPerBucket; j++) {
                 if (ReadTag(i, j) == tag) {
                     assert(FindTagInBucket(i, tag) == true);
@@ -194,8 +203,8 @@ namespace CuckooHash{
             return false;
         }
 
-        inline bool InsertTagToBucket(const size_t i, const uint32_t tag,
-                                      const bool kickout, uint32_t &oldtag) {
+        inline bool InsertTagToBucket(const size_t i, const uint64_t tag,
+                                      const bool kickout, uint64_t &oldtag) {
             for (size_t j = 0; j < kTagsPerBucket; j++) {
                 if (ReadTag(i, j) == 0) {
                     WriteTag(i, j, tag);
