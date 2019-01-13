@@ -15,14 +15,14 @@
 //Generally every bucket contains slots with the number of associativity,
 //slot contains key's hash tag and location of key-value pair
 namespace CuckooHash{
-    template </*size_t bits_per_tag, */size_t bits_per_slot, size_t associativity>
+    template <size_t bits_per_tag, size_t bits_per_slot, size_t associativity>
     class BaseTable {
         static const size_t slotsPerBucket = associativity;
         //plus 7 to make sure there is enough space per Bucket to store slots
         //when bits_per_slot = 1
         static const size_t bytesPerBucket =
                 (bits_per_slot * slotsPerBucket + 7) >> 3;
-        //static const uint32_t tagMask = static_cast<const uint32_t>((1ULL << bits_per_tag) - 1);
+        static const uint32_t tagMask = static_cast<const uint32_t>((1ULL << bits_per_tag) - 1);
         static const size_t paddingBuckets =
                 ((((bytesPerBucket + 7) / 8) * 8) - 1) / bytesPerBucket;
 
@@ -49,9 +49,9 @@ namespace CuckooHash{
             return num_buckets_;
         }
 
-        /*uint32_t TagMask() const{
+        uint32_t TagMask() const{
             return tagMask;
-        }*/
+        }
 
         size_t SizeInBytes() const {
             return bytesPerBucket * num_buckets_;
@@ -63,8 +63,7 @@ namespace CuckooHash{
 
         std::string Info() const {
             std::stringstream ss;
-            //ss << "BaseTable with tag size and slot size: " << bits_per_tag << " / " bits_per_slot << " bits \n";
-            ss << "BaseTable with slot size: " << bits_per_slot << " bits \n";
+            ss << "BaseTable with tag size and slot size: " << bits_per_tag << " / " bits_per_slot << " bits \n";
             ss << "\t\tAssociativity: " << slotsPerBucket << "\n";
             ss << "\t\tTotal # of rows: " << num_buckets_ << "\n";
             ss << "\t\tTotal # slots: " << SizeInSlots() << "\n";
@@ -74,7 +73,7 @@ namespace CuckooHash{
         // read slot from pos(i,j)
         inline uint64_t ReadSlot(const size_t i, const size_t j) const {
             const char *p = buckets_[i].bits_;
-            uint64_t slot;
+            uint64_t slot = 0;
             /* following code only works for little-endian */
             if (bits_per_slot == 2) {
                 slot = *((uint8_t *)p) >> (j * 2);
@@ -96,6 +95,10 @@ namespace CuckooHash{
                 slot = ((uint64_t *)p)[j];
             }
             return slot;
+        }
+
+        inline uint64_t ReadTag(const size_t i, const size_t j) const {
+            return ReadSlot(i, j) >> (bits_per_slot - bits_per_tag);
         }
 
         // write slot to pos(i,j)
@@ -133,6 +136,7 @@ namespace CuckooHash{
                 ((uint64_t *)p)[j] = slot;
             }
         }
+        
 
         inline bool FindSlotInBuckets(const size_t i1, const size_t i2,
                                      const uint64_t tag) const {
