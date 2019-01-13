@@ -136,9 +136,9 @@ namespace CuckooHash{
                 ((uint64_t *)p)[j] = slot;
             }
         }
-        
 
-        inline bool FindSlotInBuckets(const size_t i1, const size_t i2,
+
+        inline bool FindTagInBuckets(const size_t i1, const size_t i2,
                                      const uint64_t tag) const {
             const char *p1 = buckets_[i1].bits_;
             const char *p2 = buckets_[i2].bits_;
@@ -193,29 +193,31 @@ namespace CuckooHash{
             }
         }
 
-        inline bool DeleteTagFromBucket(const size_t i, const uint64_t tag) {
+
+        //delete slot with specific tag from bucket
+        inline bool DeleteSlotFromBucket(const size_t i, const uint64_t tag) {
             for (size_t j = 0; j < slotsPerBucket; j++) {
                 if (ReadTag(i, j) == tag) {
                     assert(FindTagInBucket(i, tag) == true);
-                    WriteTag(i, j, 0);
+                    WriteSlot(i, j, 0);
                     return true;
                 }
             }
             return false;
         }
 
-        inline bool InsertTagToBucket(const size_t i, const uint64_t tag,
-                                      const bool kickout, uint64_t &oldtag) {
+        inline bool InsertSlotToBucket(const size_t i, const uint64_t slot,
+                                      const bool kickout, uint64_t &oldslot) {
             for (size_t j = 0; j < slotsPerBucket; j++) {
-                if (ReadTag(i, j) == 0) {
-                    WriteTag(i, j, tag);
+                if (ReadSlot(i, j) == 0) {
+                    WriteSlot(i, j, slot);
                     return true;
                 }
             }
             if (kickout) {
                 size_t r = rand() & (slotsPerBucket - 1);
-                oldtag = ReadTag(i, r);
-                WriteTag(i, r, tag);
+                oldslot = ReadSlot(i, r);
+                WriteSlot(i, r, slot);
             }
             return false;
         }
@@ -223,7 +225,7 @@ namespace CuckooHash{
         inline size_t NumTagsInBucket(const size_t i) const {
             size_t num = 0;
             for (size_t j = 0; j < slotsPerBucket; j++) {
-                if (ReadTag(i, j) != 0) {
+                if (ReadSlot(i, j) != 0) {
                     num++;
                 }
             }
