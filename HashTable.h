@@ -77,7 +77,7 @@ private:
         return IndexHash((uint32_t) (index ^ (tag * 0x5bd1e995)));;
     }
 
-    Status AddImpl(const size_t i, const uint32_t tag, const uint32_t location);
+    Status AddImpl(size_t i, uint32_t tag, uint32_t location);
 
     // number of current inserted items;
     size_t Size() const { return num_items_; }
@@ -99,13 +99,13 @@ public:
             num_buckets <<= 1;
         }
         victim_.used = false;
-        table_ = new TableType<bits_per_tag, bits_per_slot, 4>(num_buckets);
+        table_ = new TableType<bits_per_tag, bits_per_slot, assoc>(num_buckets);
     }
 
     ~HashTable() { delete table_; }
 
     // Add an item to the filter.
-    Status Add(const ItemType &item, const uint32_t location);
+    Status Add(const ItemType &item, uint32_t location);
 
     // Report if the item is inserted, with false positive rate.
     Status Find(const ItemType &key, uint32_t *location) const;
@@ -157,7 +157,7 @@ Status HashTable<ItemType, bits_per_tag, bits_per_slot, TableType>::AddImpl(
             curslot = oldslot;
         }
         //beign kick out after both index tried
-        curindex = AltIndex(curindex, curslot >> moveSlotToTag);
+        curindex = AltIndex(curindex, static_cast<const uint32_t>(curslot >> moveSlotToTag));
     }
 
     victim_.index = curindex;
@@ -209,12 +209,19 @@ Status HashTable<ItemType, bits_per_tag, bits_per_slot, TableType>::Delete(
     GenerateIndexTagHash(key, &i1, &tag);
     i2 = AltIndex(i1, tag);
 
-    if (table_->DeleteSlotFromBucket(i1, tag)) {
+    if (table_->DeleteSlotFromBucket(i1, tag) || table_->DeleteSlotFromBucket(i2, tag)) {
         num_items_--;
-        goto TryEliminateVictim;
-    } else if (table_->DeleteSlotFromBucket(i2, tag)) {
-        num_items_--;
-        goto TryEliminateVictim;
+        //TryEliminateVictim
+        if (victim_.used) {
+            num_items_--;
+            victim_.used = false;
+            size_t i = victim_.index;
+            uint64_t slot = victim_.slot;
+            auto tag1 = static_cast<uint32_t>(slot >> moveSlotToTag);
+            auto position = static_cast<uint32_t>(slot);
+            AddImpl(i, tag1, position);
+        }
+        return Ok;
     } else if (victim_.used && (tag == victim_.slot >> moveSlotToTag) &&
                (i1 == victim_.index || i2 == victim_.index)) {
         num_items_--;
@@ -223,17 +230,6 @@ Status HashTable<ItemType, bits_per_tag, bits_per_slot, TableType>::Delete(
     } else {
         return NotFound;
     }
-    TryEliminateVictim:
-    if (victim_.used) {
-        num_items_--;
-        victim_.used = false;
-        size_t i = victim_.index;
-        uint64_t slot = victim_.slot;
-        auto tag1 = static_cast<uint32_t>(slot >> moveSlotToTag);
-        auto position = static_cast<uint32_t>(slot);
-        AddImpl(i, tag1, position);
-    }
-    return Ok;
 }
 
 template <typename ItemType, size_t bits_per_tag, size_t bits_per_slot,

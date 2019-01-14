@@ -24,8 +24,28 @@ int main() {
     }
     uint32_t loc = 0;
     for (size_t i = 0; i < total_items; i++, num_inserted++) {
-        if (table.Find(i, &loc) != i) {
-            cout<<"bit error"<<endl;
+        if (table.Find(i, &loc) == CuckooHash::Ok && loc == i) {
+            continue;
+        } else {
+            cout<<"find error"<<endl;
+            break;
+        }
+    }
+
+    for (size_t i = 0; i < total_items; i++, num_inserted++) {
+        if (table.Delete(i) == CuckooHash::Ok) {
+            continue;
+        } else {
+            cout<<"delete error"<<endl;
+            break;
+        }
+    }
+
+    for (size_t i = 0; i < total_items; i++, num_inserted++) {
+        if (table.Find(i, &loc) == CuckooHash::NotFound) {
+            continue;
+        } else {
+            cout<<"delete not completed"<<endl;
             break;
         }
     }
