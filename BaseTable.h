@@ -111,24 +111,12 @@ namespace CuckooHash{
                 }
             }
             return static_cast<uint64_t >(-1);
-
         }
-
-        inline bool FindTagInBucket(const size_t i, const uint32_t tag) const {
-            for (size_t j = 0; j < slotsPerBucket; j++) {
-                if (ReadTag(i, j) == tag) {
-                    return true;
-                }
-            }
-            return false;
-        }
-
 
         //delete slot with specific tag from bucket
         inline bool DeleteSlotFromBucket(const size_t i, const uint32_t tag) {
             for (size_t j = 0; j < slotsPerBucket; j++) {
                 if (ReadTag(i, j) == tag) {
-                    assert(FindTagInBucket(i, tag));
                     WriteSlot(i, j, 0);
                     return true;
                 }

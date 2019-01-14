@@ -32,6 +32,8 @@ class HashTable {
 private:
     // maximum number of cuckoo kicks before claiming failure
     static const size_t kMaxCuckooKickCount = 500;
+
+    size_t maxKickRecorded = 0;
     static const size_t SlotTagShift = (bits_per_slot - bits_per_tag);
     //assoc = slotsPerBucket
     static const size_t assoc = 4;
@@ -67,7 +69,7 @@ private:
 
     inline void GenerateIndexTagHash(const ItemType &item, size_t *index,
                                      uint32_t *tag) const {
-        const uint64_t hash = CuckooHash::HashUtil::MurmurHash64A((void *) &item, sizeof(item), 100 * cuckooMurmurSeedMultiplier);
+        const uint64_t hash = CuckooHash::HashUtil::MurmurHash64A((void *) &item, sizeof(item), cuckooMurmurSeedMultiplier);
         *index = IndexHash(static_cast<uint32_t>(hash >> 32));
         *tag = TagHash((uint32_t) hash);
     }
@@ -152,6 +154,7 @@ Status HashTable<ItemType, bits_per_tag, bits_per_slot, TableType>::AddImpl(
         oldslot = 0;
         if (table_->InsertSlotToBucket(curindex, curslot, kickout, oldslot)) {
             num_items_++;
+            maxKickRecorded = (count > maxKickRecorded) ? count:maxKickRecorded;
             return Ok;
         }
         if (kickout) {
@@ -161,6 +164,7 @@ Status HashTable<ItemType, bits_per_tag, bits_per_slot, TableType>::AddImpl(
         curindex = AltIndex(curindex, static_cast<const uint32_t>(curslot >> SlotTagShift));
     }
 
+    maxKickRecorded = kMaxCuckooKickCount;
     victim_.index = curindex;
     victim_.slot = curslot;
     victim_.used = true;
@@ -252,6 +256,7 @@ std::string HashTable<ItemType, bits_per_tag, bits_per_slot, TableType>::Info() 
     } else {
         ss << "\t\tHashtable has no victim" << "\n";
     }
+    ss << "\t\tMaxKickCount up to: "<< maxKickRecorded <<"\n";
     return ss.str();
 }
 };  // namespace CuckooHash
