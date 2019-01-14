@@ -236,7 +236,7 @@ template <typename ItemType, size_t bits_per_tag, size_t bits_per_slot,
         template <size_t, size_t, size_t > class TableType>
 std::string HashTable<ItemType, bits_per_tag, bits_per_slot, TableType>::Info() const {
     std::stringstream ss;
-    ss << "CuckooFilter Status:\n"
+    ss << "Hashtable Status:\n"
        << "\t\t" << table_->Info() << "\n"
        << "\t\tKeys stored: " << Size() << "\n"
        << "\t\tLoad factor: " << LoadFactor() << "\n"

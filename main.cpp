@@ -10,7 +10,7 @@ using std::endl;
 
 int main() {
 
-    size_t total_items = 1000000;
+    size_t total_items = 16000000;
     HashTable<size_t, 32, 64> table(total_items);
 
     auto start_time = NowNanos();
@@ -22,9 +22,12 @@ int main() {
             break;
         }
     }
+    cout<<"total inserted items' count:"<<num_inserted<<endl;
+    cout<<table.Info();
     uint32_t loc = 0;
-    for (size_t i = 0; i < total_items; i++, num_inserted++) {
+    for (size_t i = 0; i < total_items; i++) {
         if (table.Find(i, &loc) == CuckooHash::Ok && loc == i) {
+            //cout<<loc<<endl;
             continue;
         } else {
             cout<<"find error"<<endl;
@@ -32,7 +35,7 @@ int main() {
         }
     }
 
-    for (size_t i = 0; i < total_items; i++, num_inserted++) {
+    for (size_t i = 0; i < total_items; i++) {
         if (table.Delete(i) == CuckooHash::Ok) {
             continue;
         } else {
@@ -41,7 +44,7 @@ int main() {
         }
     }
 
-    for (size_t i = 0; i < total_items; i++, num_inserted++) {
+    for (size_t i = 0; i < total_items; i++) {
         if (table.Find(i, &loc) == CuckooHash::NotFound) {
             continue;
         } else {
