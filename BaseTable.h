@@ -22,7 +22,7 @@ namespace CuckooHash{
         static const size_t bytesPerBucket =
                 (bits_per_slot * slotsPerBucket + 7) >> 3;
         static const uint32_t tagMask = static_cast<const uint32_t>((1ULL << bits_per_tag) - 1);
-        static const size_t moveSlotToTag = (bits_per_slot - bits_per_tag);
+        static const size_t SlotTagShift = (bits_per_slot - bits_per_tag);
         static const size_t paddingBuckets =
                 ((((bytesPerBucket + 7) / 8) * 8) - 1) / bytesPerBucket;
 
@@ -98,7 +98,7 @@ namespace CuckooHash{
         }
 
         inline uint64_t ReadTag(const size_t i, const size_t j) const {
-            return ReadSlot(i, j) >> moveSlotToTag;
+            return ReadSlot(i, j) >> SlotTagShift;
         }
 
         // write slot to pos(i,j)
@@ -146,11 +146,11 @@ namespace CuckooHash{
             uint64_t slot1 = 0;
             for (size_t j = 0; j < slotsPerBucket; j++) {
                 slot1 = ReadSlot(i1, j);
-                if (slot1 >> moveSlotToTag == tag){
+                if (slot1 >> SlotTagShift == tag){
                     return slot1;
                 }
                 slot1 = ReadSlot(i2, j);
-                if(slot1 >> moveSlotToTag == tag) {
+                if(slot1 >> SlotTagShift == tag) {
                     return slot1;
                 }
             }

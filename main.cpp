@@ -10,7 +10,7 @@ using std::endl;
 
 int main() {
 
-    size_t total_items = 16000000;
+    size_t total_items = 1000000;
     HashTable<size_t, 32, 64> table(total_items);
 
     auto start_time = NowNanos();

@@ -24,7 +24,7 @@ enum Status {
 
 // Hash Table providing methods of Add, Delete, Find.
 // It takes three template parameters:
-//  PointerType: type of pointer points to the location of data
+//  ItemType: type of key 
 //  TableType: the storage of table, BaseTable by default
 template <typename ItemType, size_t bits_per_tag, size_t bits_per_slot,
           template <size_t, size_t, size_t> class TableType = BaseTable>
@@ -32,15 +32,14 @@ class HashTable {
 private:
     // maximum number of cuckoo kicks before claiming failure
     static const size_t kMaxCuckooKickCount = 500;
-    static const size_t moveSlotToTag = (bits_per_slot - bits_per_tag);
+    static const size_t SlotTagShift = (bits_per_slot - bits_per_tag);
     //assoc = slotsPerBucket
     static const size_t assoc = 4;
 
-    // storage of pointers
     // typically 32 bits tag, 32 bits location
     TableType<bits_per_tag, bits_per_slot, assoc> *table_;
 
-    // number of pointers stored
+    // number of keys stored
     size_t num_items_;
 
     typedef struct {
@@ -88,6 +87,8 @@ private:
     double BitsPerItem() const { return 8.0 * table_->SizeInBytes() / Size(); }
 
 public:
+
+    inline bool hasVictim() const { return victim_.used; }
     explicit HashTable(const size_t max_num_keys) : num_items_(0), victim_() {
 
         //table_->num_buckets is always a power of two greater than max_num_keys
@@ -143,7 +144,7 @@ Status HashTable<ItemType, bits_per_tag, bits_per_slot, TableType>::AddImpl(
         const size_t i, const uint32_t tag, const uint32_t location) {
     size_t curindex = i;
     uint64_t curslot = tag;
-    curslot = (curslot << moveSlotToTag) + location;
+    curslot = (curslot << SlotTagShift) + location;
     uint64_t oldslot;
 
     for (uint32_t count = 0; count < kMaxCuckooKickCount; count++) {
@@ -157,7 +158,7 @@ Status HashTable<ItemType, bits_per_tag, bits_per_slot, TableType>::AddImpl(
             curslot = oldslot;
         }
         //beign kick out after both index tried
-        curindex = AltIndex(curindex, static_cast<const uint32_t>(curslot >> moveSlotToTag));
+        curindex = AltIndex(curindex, static_cast<const uint32_t>(curslot >> SlotTagShift));
     }
 
     victim_.index = curindex;
@@ -182,7 +183,7 @@ Status HashTable<ItemType, bits_per_tag, bits_per_slot, TableType>::Find(
 
     uint64_t slot = 0;
     slot = victim_.slot;
-    found = victim_.used && (tag == slot >> moveSlotToTag) &&
+    found = victim_.used && (tag == slot >> SlotTagShift) &&
             (i1 == victim_.index || i2 == victim_.index);
 
     if (found) {
@@ -217,12 +218,12 @@ Status HashTable<ItemType, bits_per_tag, bits_per_slot, TableType>::Delete(
             victim_.used = false;
             size_t i = victim_.index;
             uint64_t slot = victim_.slot;
-            auto tag1 = static_cast<uint32_t>(slot >> moveSlotToTag);
+            auto tag1 = static_cast<uint32_t>(slot >> SlotTagShift);
             auto position = static_cast<uint32_t>(slot);
             AddImpl(i, tag1, position);
         }
         return Ok;
-    } else if (victim_.used && (tag == victim_.slot >> moveSlotToTag) &&
+    } else if (victim_.used && (tag == victim_.slot >> SlotTagShift) &&
                (i1 == victim_.index || i2 == victim_.index)) {
         num_items_--;
         victim_.used = false;
@@ -245,6 +246,11 @@ std::string HashTable<ItemType, bits_per_tag, bits_per_slot, TableType>::Info() 
         ss << "\t\tbit/key:   " << BitsPerItem() << "\n";
     } else {
         ss << "\t\tbit/key:   N/A\n";
+    }
+    if (hasVictim()) {
+        ss << "\t\tHashtable has one victim" << "\n";
+    } else {
+        ss << "\t\tHashtable has no victim" << "\n";
     }
     return ss.str();
 }
