@@ -74,24 +74,7 @@ namespace CuckooHash{
         inline uint64_t ReadSlot(const size_t i, const size_t j) const {
             const char *p = buckets_[i].bits_;
             uint64_t slot = 0;
-            /* following code only works for little-endian */
-            if (bits_per_slot == 2) {
-                slot = *((uint8_t *)p) >> (j * 2);
-            } else if (bits_per_slot == 4) {
-                p += (j >> 1);
-                slot = *((uint8_t *)p) >> ((j & 1) << 2);
-            } else if (bits_per_slot == 8) {
-                p += j;
-                slot = *((uint8_t *)p);
-            } else if (bits_per_slot == 12) {
-                p += j + (j >> 1);
-                slot = *((uint16_t *)p) >> ((j & 1) << 2);
-            } else if (bits_per_slot == 16) {
-                p += (j << 1);
-                slot = *((uint16_t *)p);
-            } else if (bits_per_slot == 32) {
-                slot = ((uint32_t *)p)[j];
-            } else if (bits_per_slot == 64) {
+            if (bits_per_slot == 64) {
                 slot = ((uint64_t *)p)[j];
             }
             return slot;
@@ -105,34 +88,7 @@ namespace CuckooHash{
         inline void WriteSlot(const size_t i, const size_t j, const uint64_t s) {
             char *p = buckets_[i].bits_;
             uint64_t slot = s;
-            /* following code only works for little-endian */
-            if (bits_per_slot == 2) {
-                *((uint8_t *)p) |= slot << (2 * j);
-            } else if (bits_per_slot == 4) {
-                p += (j >> 1);
-                if ((j & 1) == 0) {
-                    *((uint8_t *)p) &= 0xf0;
-                    *((uint8_t *)p) |= slot;
-                } else {
-                    *((uint8_t *)p) &= 0x0f;
-                    *((uint8_t *)p) |= (slot << 4);
-                }
-            } else if (bits_per_slot == 8) {
-                ((uint8_t *)p)[j] = static_cast<uint8_t>(slot);
-            } else if (bits_per_slot == 12) {
-                p += (j + (j >> 1));
-                if ((j & 1) == 0) {
-                    ((uint16_t *)p)[0] &= 0xf000;
-                    ((uint16_t *)p)[0] |= slot;
-                } else {
-                    ((uint16_t *)p)[0] &= 0x000f;
-                    ((uint16_t *)p)[0] |= (slot << 4);
-                }
-            } else if (bits_per_slot == 16) {
-                ((uint16_t *)p)[j] = static_cast<uint16_t>(slot);
-            } else if (bits_per_slot == 32) {
-                ((uint32_t *)p)[j] = static_cast<uint32_t>(slot);
-            } else if (bits_per_slot == 64){
+            if (bits_per_slot == 64){
                 ((uint64_t *)p)[j] = slot;
             }
         }
@@ -159,31 +115,12 @@ namespace CuckooHash{
         }
 
         inline bool FindTagInBucket(const size_t i, const uint32_t tag) const {
-            // caution: unaligned access & assuming little endian
-            if (bits_per_slot == 4 && slotsPerBucket == 4) {
-                const char *p = buckets_[i].bits_;
-                uint64_t v = *(uint64_t *)p;  // uint16_t may suffice
-                return hasvalue4(v, tag);
-            } else if (bits_per_slot == 8 && slotsPerBucket == 4) {
-                const char *p = buckets_[i].bits_;
-                uint64_t v = *(uint64_t *)p;  // uint32_t may suffice
-                return hasvalue8(v, tag);
-            } else if (bits_per_slot == 12 && slotsPerBucket == 4) {
-                const char *p = buckets_[i].bits_;
-                uint64_t v = *(uint64_t *)p;
-                return hasvalue12(v, tag);
-            } else if (bits_per_slot == 16 && slotsPerBucket == 4) {
-                const char *p = buckets_[i].bits_;
-                uint64_t v = *(uint64_t *)p;
-                return hasvalue16(v, tag);
-            } else {
-                for (size_t j = 0; j < slotsPerBucket; j++) {
-                    if (ReadTag(i, j) == tag) {
-                        return true;
-                    }
+            for (size_t j = 0; j < slotsPerBucket; j++) {
+                if (ReadTag(i, j) == tag) {
+                    return true;
                 }
-                return false;
             }
+            return false;
         }
 
 
