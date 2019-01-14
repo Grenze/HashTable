@@ -19,8 +19,8 @@ namespace CuckooHash {
 class HashUtil {
 public:
     static uint64_t MurmurHash64A(const void *key, int len, unsigned int seed);
-private:
     HashUtil();
+    ~HashUtil();
 
     };  // class HashUtil
 } // namespace CuckooHash

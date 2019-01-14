@@ -6,8 +6,11 @@
 #define CUCKOOHASH_HASHTABLE_H
 
 #include <cstring>
+#include <assert.h>
+
 #include "BaseTable.h"
 #include "HashUtil.h"
+
 
 namespace CuckooHash{
 
@@ -24,17 +27,18 @@ enum Status {
 //  PointerType: type of pointer points to the location of data
 //  TableType: the storage of table, BaseTable by default
 template <typename ItemType, size_t bits_per_tag, size_t bits_per_slot,
-          template <size_t, size_t, size_t> class TableType = BaseTable,
-          typename HashFamily = HashUtil>
+          template <size_t, size_t, size_t> class TableType = BaseTable>
 class HashTable {
 private:
     // maximum number of cuckoo kicks before claiming failure
-    const size_t kMaxCuckooKickCount = 500;
+    static const size_t kMaxCuckooKickCount = 500;
     static const size_t moveSlotToTag = (bits_per_slot - bits_per_tag);
+    //assoc = slotsPerBucket
+    static const size_t assoc = 4;
 
     // storage of pointers
     // typically 32 bits tag, 32 bits location
-    TableType<32, 32, 4> *table_;
+    TableType<bits_per_tag, bits_per_slot, assoc> *table_;
 
     // number of pointers stored
     size_t num_items_;
@@ -46,8 +50,6 @@ private:
     } VictimItem;
 
     VictimItem victim_;
-
-    HashFamily hasher_;
 
     inline size_t IndexHash(uint32_t hv) const {
         // table_->num_buckets is always a power of two,
@@ -66,7 +68,7 @@ private:
 
     inline void GenerateIndexTagHash(const ItemType &item, size_t *index,
                                      uint32_t *tag) const {
-        const uint64_t hash = hasher_->MurmurHash64A((void *) &item, sizeof(item), 100 * cuckooMurmurSeedMultiplier);
+        const uint64_t hash = CuckooHash::HashUtil::MurmurHash64A((void *) &item, sizeof(item), 100 * cuckooMurmurSeedMultiplier);
         *index = IndexHash(static_cast<uint32_t>(hash >> 32));
         *tag = TagHash((uint32_t) hash);
     }
@@ -86,9 +88,8 @@ private:
     double BitsPerItem() const { return 8.0 * table_->SizeInBytes() / Size(); }
 
 public:
-    explicit HashTable(const size_t max_num_keys) : num_items_(0), victim_(), hasher_() {
-        //assoc = slotsPerBucket
-        size_t assoc = 4;
+    explicit HashTable(const size_t max_num_keys) : num_items_(0), victim_() {
+
         //table_->num_buckets is always a power of two greater than max_num_keys
         size_t num_buckets = upperpower2(std::max<uint64_t>(1, max_num_keys / assoc));
         //check if max_num_keys/(num_buckets*assoc) <= 0.96
@@ -122,8 +123,8 @@ public:
 
 
 template <typename ItemType, size_t bits_per_tag, size_t bits_per_slot,
-        template <size_t, size_t, size_t > class TableType, typename HashFamily>
-Status HashTable<ItemType, bits_per_tag, bits_per_slot, TableType, HashFamily>::Add(
+        template <size_t, size_t, size_t > class TableType>
+Status HashTable<ItemType, bits_per_tag, bits_per_slot, TableType>::Add(
         const ItemType &item, const uint32_t location) {
     size_t i;
     uint32_t tag;
@@ -137,12 +138,13 @@ Status HashTable<ItemType, bits_per_tag, bits_per_slot, TableType, HashFamily>::
 }
 
 template <typename ItemType, size_t bits_per_tag, size_t bits_per_slot,
-        template <size_t, size_t, size_t > class TableType, typename HashFamily>
-Status HashTable<ItemType, bits_per_tag, bits_per_slot, TableType, HashFamily>::AddImpl(
+        template <size_t, size_t, size_t > class TableType>
+Status HashTable<ItemType, bits_per_tag, bits_per_slot, TableType>::AddImpl(
         const size_t i, const uint32_t tag, const uint32_t location) {
     size_t curindex = i;
-    uint32_t curslot = (tag << moveSlotToTag) + location;
-    uint32_t oldslot;
+    uint64_t curslot = tag;
+    curslot = (curslot << moveSlotToTag) + location;
+    uint64_t oldslot;
 
     for (uint32_t count = 0; count < kMaxCuckooKickCount; count++) {
         bool kickout = count > 0;
@@ -166,8 +168,8 @@ Status HashTable<ItemType, bits_per_tag, bits_per_slot, TableType, HashFamily>::
 }
 
 template <typename ItemType, size_t bits_per_tag, size_t bits_per_slot,
-        template <size_t, size_t, size_t > class TableType, typename HashFamily>
-Status HashTable<ItemType, bits_per_tag, bits_per_slot, TableType, HashFamily>::Find(
+        template <size_t, size_t, size_t > class TableType>
+Status HashTable<ItemType, bits_per_tag, bits_per_slot, TableType>::Find(
         const ItemType &key, uint32_t *location) const {//location &l passed in
     bool found = false;
     size_t i1, i2;
@@ -184,11 +186,13 @@ Status HashTable<ItemType, bits_per_tag, bits_per_slot, TableType, HashFamily>::
             (i1 == victim_.index || i2 == victim_.index);
 
     if (found) {
-        location  = static_cast<uint32_t>(victim_.slot);
+        *location  = static_cast<uint32_t>(slot);
         return Ok;
     }
 
-    if ((location = table_->FindTagInBuckets(i1, i2, tag)) != -1) {
+    slot = table_->FindSlotInBuckets(i1, i2, tag);
+    *location = static_cast<uint32_t >(slot);
+    if (slot != -1) {
         return Ok;
     } else {
         return NotFound;
@@ -196,8 +200,8 @@ Status HashTable<ItemType, bits_per_tag, bits_per_slot, TableType, HashFamily>::
 }
 
 template <typename ItemType, size_t bits_per_tag, size_t bits_per_slot,
-        template <size_t, size_t, size_t > class TableType, typename HashFamily>
-Status HashTable<ItemType, bits_per_tag, bits_per_slot, TableType, HashFamily>::Delete(
+        template <size_t, size_t, size_t > class TableType>
+Status HashTable<ItemType, bits_per_tag, bits_per_slot, TableType>::Delete(
         const ItemType &key) {
     size_t i1, i2;
     uint32_t tag;
@@ -233,8 +237,8 @@ Status HashTable<ItemType, bits_per_tag, bits_per_slot, TableType, HashFamily>::
 }
 
 template <typename ItemType, size_t bits_per_tag, size_t bits_per_slot,
-        template <size_t, size_t, size_t > class TableType, typename HashFamily>
-std::string HashTable<ItemType, bits_per_tag, bits_per_slot, TableType, HashFamily>::Info() const {
+        template <size_t, size_t, size_t > class TableType>
+std::string HashTable<ItemType, bits_per_tag, bits_per_slot, TableType>::Info() const {
     std::stringstream ss;
     ss << "CuckooFilter Status:\n"
        << "\t\t" << table_->Info() << "\n"
