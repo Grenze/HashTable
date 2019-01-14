@@ -9,7 +9,6 @@
 #include <cstdint>
 #include <sstream>
 
-#include "BaseTable.h"
 #include "BitsUtil.h"
 
 //Generally every bucket contains slots with the number of associativity,
@@ -63,7 +62,7 @@ namespace CuckooHash{
 
         std::string Info() const {
             std::stringstream ss;
-            ss << "BaseTable with tag size and slot size: " << bits_per_tag << " / " bits_per_slot << " bits \n";
+            ss << "BaseTable with tag size and slot size: " << bits_per_tag << " / " << bits_per_slot << " bits \n";
             ss << "\t\tAssociativity: " << slotsPerBucket << "\n";
             ss << "\t\tTotal # of rows: " << num_buckets_ << "\n";
             ss << "\t\tTotal # slots: " << SizeInSlots() << "\n";

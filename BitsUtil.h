@@ -24,19 +24,18 @@ namespace CuckooHash {
 #define hasvalue16(x, n) (haszero16((x) ^ (0x0001000100010001ULL * (n))))
 
 
-    class BitsUtil {
-        static inline uint64_t upperpower2(uint64_t x) {
-            x--;
-            x |= x >> 1;
-            x |= x >> 2;
-            x |= x >> 4;
-            x |= x >> 8;
-            x |= x >> 16;
-            x |= x >> 32;
-            x++;
-            return x;
-        }
-    };  // class BitsUtil
+inline uint64_t upperpower2(uint64_t x) {
+    x--;
+    x |= x >> 1;
+    x |= x >> 2;
+    x |= x >> 4;
+    x |= x >> 8;
+    x |= x >> 16;
+    x |= x >> 32;
+    x++;
+    return x;
+}
+
 
 }   // namespace CuckooHash
 
