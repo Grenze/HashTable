@@ -22,6 +22,7 @@ namespace CuckooHash{
         static const size_t bytesPerBucket =
                 (bits_per_slot * slotsPerBucket + 7) >> 3;
         static const uint32_t tagMask = static_cast<const uint32_t>((1ULL << bits_per_tag) - 1);
+        static const size_t moveSlotToTag = (bits_per_slot - bits_per_tag);
         static const size_t paddingBuckets =
                 ((((bytesPerBucket + 7) / 8) * 8) - 1) / bytesPerBucket;
 
@@ -97,7 +98,7 @@ namespace CuckooHash{
         }
 
         inline uint64_t ReadTag(const size_t i, const size_t j) const {
-            return ReadSlot(i, j) >> (bits_per_slot - bits_per_tag);
+            return ReadSlot(i, j) >> moveSlotToTag;
         }
 
         // write slot to pos(i,j)
@@ -136,35 +137,28 @@ namespace CuckooHash{
             }
         }
 
-
-        inline bool FindTagInBuckets(const size_t i1, const size_t i2,
-                                     const uint64_t tag) const {
+        // find slot with specific tag in buckets
+        inline uint64_t FindSlotInBuckets(const size_t i1, const size_t i2,
+                                     const uint32_t tag) const {
             const char *p1 = buckets_[i1].bits_;
             const char *p2 = buckets_[i2].bits_;
 
-            uint64_t v1 = *((uint64_t *)p1);
-            uint64_t v2 = *((uint64_t *)p2);
-
-            // caution: unaligned access & assuming little endian
-            if (bits_per_slot == 4 && slotsPerBucket == 4) {
-                return hasvalue4(v1, tag) || hasvalue4(v2, tag);
-            } else if (bits_per_slot == 8 && slotsPerBucket == 4) {
-                return hasvalue8(v1, tag) || hasvalue8(v2, tag);
-            } else if (bits_per_slot == 12 && slotsPerBucket == 4) {
-                return hasvalue12(v1, tag) || hasvalue12(v2, tag);
-            } else if (bits_per_slot == 16 && slotsPerBucket == 4) {
-                return hasvalue16(v1, tag) || hasvalue16(v2, tag);
-            } else {
-                for (size_t j = 0; j < slotsPerBucket; j++) {
-                    if ((ReadTag(i1, j) == tag) || (ReadTag(i2, j) == tag)) {
-                        return true;
-                    }
+            uint64_t slot1 = 0;
+            for (size_t j = 0; j < slotsPerBucket; j++) {
+                slot1 = ReadSlot(i1, j);
+                if (slot1 >> moveSlotToTag == tag){
+                    return slot1;
                 }
-                return false;
+                slot1 = ReadSlot(i2, j);
+                if(slot1 >> moveSlotToTag == tag) {
+                    return slot1;
+                }
             }
+            return static_cast<uint64_t >(-1);
+
         }
 
-        inline bool FindTagInBucket(const size_t i, const uint64_t tag) const {
+        inline bool FindTagInBucket(const size_t i, const uint32_t tag) const {
             // caution: unaligned access & assuming little endian
             if (bits_per_slot == 4 && slotsPerBucket == 4) {
                 const char *p = buckets_[i].bits_;
@@ -194,10 +188,10 @@ namespace CuckooHash{
 
 
         //delete slot with specific tag from bucket
-        inline bool DeleteSlotFromBucket(const size_t i, const uint64_t tag) {
+        inline bool DeleteSlotFromBucket(const size_t i, const uint32_t tag) {
             for (size_t j = 0; j < slotsPerBucket; j++) {
                 if (ReadTag(i, j) == tag) {
-                    assert(FindTagInBucket(i, tag) == true);
+                    assert(FindTagInBucket(i, tag));
                     WriteSlot(i, j, 0);
                     return true;
                 }
@@ -221,7 +215,7 @@ namespace CuckooHash{
             return false;
         }
 
-        inline size_t NumTagsInBucket(const size_t i) const {
+        inline size_t NumSlotsInBucket(const size_t i) const {
             size_t num = 0;
             for (size_t j = 0; j < slotsPerBucket; j++) {
                 if (ReadSlot(i, j) != 0) {

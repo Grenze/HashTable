@@ -23,13 +23,15 @@ enum Status {
 // It takes three template parameters:
 //  PointerType: type of pointer points to the location of data
 //  TableType: the storage of table, BaseTable by default
-template <typename ItemType, size_t bits_per_tag, size_t bits_per_slot
-          template <size_t, size_t, size_t > class TableType = BaseTable,
+template <typename ItemType, size_t bits_per_tag, size_t bits_per_slot,
+          template <size_t, size_t, size_t> class TableType = BaseTable,
           typename HashFamily = HashUtil>
 class HashTable {
 private:
     // maximum number of cuckoo kicks before claiming failure
     const size_t kMaxCuckooKickCount = 500;
+    static const size_t moveSlotToTag = (bits_per_slot - bits_per_tag);
+
     // storage of pointers
     // typically 32 bits tag, 32 bits location
     TableType<32, 32, 4> *table_;
@@ -62,24 +64,24 @@ private:
 
     const uint32_t cuckooMurmurSeedMultiplier = 816922183;
 
-    inline void GenerateIndexTagHash(const ItemType& item, size_t* index,
-                                     uint32_t * tag) const {
-        const uint64_t hash = hasher_->MurmurHash64A((void*)&item, sizeof(item), 100*cuckooMurmurSeedMultiplier);
+    inline void GenerateIndexTagHash(const ItemType &item, size_t *index,
+                                     uint32_t *tag) const {
+        const uint64_t hash = hasher_->MurmurHash64A((void *) &item, sizeof(item), 100 * cuckooMurmurSeedMultiplier);
         *index = IndexHash(static_cast<uint32_t>(hash >> 32));
         *tag = TagHash((uint32_t) hash);
     }
 
     inline size_t AltIndex(const size_t index, const uint32_t tag) const {
-        return IndexHash((uint32_t)(index ^ (tag * 0x5bd1e995)));;
+        return IndexHash((uint32_t) (index ^ (tag * 0x5bd1e995)));;
     }
 
-    Status AddImpl(const size_t i, const uint64_t slot);
+    Status AddImpl(const size_t i, const uint32_t tag, const uint32_t location);
 
     // number of current inserted items;
     size_t Size() const { return num_items_; }
 
     // load factor is the fraction of occupancy
-    double LoadFactor() const {return 1.0 * Size() / table_->SizeInSlots();}
+    double LoadFactor() const { return 1.0 * Size() / table_->SizeInSlots(); }
 
     double BitsPerItem() const { return 8.0 * table_->SizeInBytes() / Size(); }
 
@@ -91,21 +93,21 @@ public:
         size_t num_buckets = upperpower2(std::max<uint64_t>(1, max_num_keys / assoc));
         //check if max_num_keys/(num_buckets*assoc) <= 0.96
         //if not double num_buckets
-        double frac = (double)max_num_keys / num_buckets / assoc;
+        double frac = (double) max_num_keys / num_buckets / assoc;
         if (frac > 0.96) {
             num_buckets <<= 1;
         }
         victim_.used = false;
-        table_ = new TableType<bits_per_tag, bits_per_slot, assoc>(num_buckets);
+        table_ = new TableType<bits_per_tag, bits_per_slot, 4>(num_buckets);
     }
 
-    ~CuckooFilter() { delete table_; }
+    ~HashTable() { delete table_; }
 
     // Add an item to the filter.
-    Status Add(const ItemType &item);
+    Status Add(const ItemType &item, const uint32_t location);
 
     // Report if the item is inserted, with false positive rate.
-    Status Find(const ItemType &item) const;
+    Status Find(const ItemType &key, uint32_t *location) const;
 
     // Delete an key from the filter
     Status Delete(const ItemType &item);
@@ -114,14 +116,12 @@ public:
     // summary information
     std::string Info() const;
 
-    // number of current inserted items;
-    size_t Size() const { return num_items_; }
-
     // size of the filter in bytes.
     size_t SizeInBytes() const { return table_->SizeInBytes(); }
+};
 
 
-template <typename ItemType, size_t bits_per_tag, size_t bits_per_slot
+template <typename ItemType, size_t bits_per_tag, size_t bits_per_slot,
         template <size_t, size_t, size_t > class TableType, typename HashFamily>
 Status HashTable<ItemType, bits_per_tag, bits_per_slot, TableType, HashFamily>::Add(
         const ItemType &item, const uint32_t location) {
@@ -136,15 +136,15 @@ Status HashTable<ItemType, bits_per_tag, bits_per_slot, TableType, HashFamily>::
     return AddImpl(i, tag, location);
 }
 
-template <typename ItemType, size_t bits_per_tag, size_t bits_per_slot
+template <typename ItemType, size_t bits_per_tag, size_t bits_per_slot,
         template <size_t, size_t, size_t > class TableType, typename HashFamily>
 Status HashTable<ItemType, bits_per_tag, bits_per_slot, TableType, HashFamily>::AddImpl(
         const size_t i, const uint32_t tag, const uint32_t location) {
     size_t curindex = i;
-    uint32_t curslot = (tag << (bits_per_slot - bits_per_tag)) + location;
+    uint32_t curslot = (tag << moveSlotToTag) + location;
     uint32_t oldslot;
 
-    for (uint32_t count = 0; count < kMaxCuckooCount; count++) {
+    for (uint32_t count = 0; count < kMaxCuckooKickCount; count++) {
         bool kickout = count > 0;
         oldslot = 0;
         if (table_->InsertSlotToBucket(curindex, curslot, kickout, oldslot)) {
@@ -155,19 +155,20 @@ Status HashTable<ItemType, bits_per_tag, bits_per_slot, TableType, HashFamily>::
             curslot = oldslot;
         }
         //beign kick out after both index tried
-        curindex = AltIndex(curindex, curslot >> (bits_per_slot - bits_per_tag));
+        curindex = AltIndex(curindex, curslot >> moveSlotToTag);
     }
 
     victim_.index = curindex;
     victim_.slot = curslot;
     victim_.used = true;
+    num_items_++;
     return Ok;
 }
 
-template <typename ItemType, size_t bits_per_tag, size_t bits_per_slot
+template <typename ItemType, size_t bits_per_tag, size_t bits_per_slot,
         template <size_t, size_t, size_t > class TableType, typename HashFamily>
 Status HashTable<ItemType, bits_per_tag, bits_per_slot, TableType, HashFamily>::Find(
-        const ItemType &key, uint32_t * location) const {//location &l passed in
+        const ItemType &key, uint32_t *location) const {//location &l passed in
     bool found = false;
     size_t i1, i2;
     uint32_t tag;
@@ -177,17 +178,24 @@ Status HashTable<ItemType, bits_per_tag, bits_per_slot, TableType, HashFamily>::
 
     assert(i1 == AltIndex(i2, tag));
 
-    found = victim_.used && (tag == victim_.slot >> (bits_per_slot - bits_per_tag)) &&
+    uint64_t slot = 0;
+    slot = victim_.slot;
+    found = victim_.used && (tag == slot >> moveSlotToTag) &&
             (i1 == victim_.index || i2 == victim_.index);
 
-    if (found || table_->FindTagInBuckets(i1, i2, tag)) {
+    if (found) {
+        location  = static_cast<uint32_t>(victim_.slot);
+        return Ok;
+    }
+
+    if ((location = table_->FindTagInBuckets(i1, i2, tag)) != -1) {
         return Ok;
     } else {
         return NotFound;
     }
 }
 
-template <typename ItemType, size_t bits_per_tag, size_t bits_per_slot
+template <typename ItemType, size_t bits_per_tag, size_t bits_per_slot,
         template <size_t, size_t, size_t > class TableType, typename HashFamily>
 Status HashTable<ItemType, bits_per_tag, bits_per_slot, TableType, HashFamily>::Delete(
         const ItemType &key) {
@@ -197,15 +205,15 @@ Status HashTable<ItemType, bits_per_tag, bits_per_slot, TableType, HashFamily>::
     GenerateIndexTagHash(key, &i1, &tag);
     i2 = AltIndex(i1, tag);
 
-    if (table_->DeleteTagFromBucket(i1, tag)) {
+    if (table_->DeleteSlotFromBucket(i1, tag)) {
         num_items_--;
         goto TryEliminateVictim;
-    } else if (table_->DeleteTagFromBucket(i2, tag)) {
+    } else if (table_->DeleteSlotFromBucket(i2, tag)) {
         num_items_--;
         goto TryEliminateVictim;
-    } else if (victim_.used && tag == victim_.tag &&
+    } else if (victim_.used && (tag == victim_.slot >> moveSlotToTag) &&
                (i1 == victim_.index || i2 == victim_.index)) {
-        // num_items_--;
+        num_items_--;
         victim_.used = false;
         return Ok;
     } else {
@@ -213,15 +221,18 @@ Status HashTable<ItemType, bits_per_tag, bits_per_slot, TableType, HashFamily>::
     }
     TryEliminateVictim:
     if (victim_.used) {
+        num_items_--;
         victim_.used = false;
         size_t i = victim_.index;
-        uint32_t tag = victim_.tag;
-        AddImpl(i, tag);
+        uint64_t slot = victim_.slot;
+        auto tag1 = static_cast<uint32_t>(slot >> moveSlotToTag);
+        auto position = static_cast<uint32_t>(slot);
+        AddImpl(i, tag1, position);
     }
     return Ok;
 }
 
-template <typename ItemType, size_t bits_per_tag, size_t bits_per_slot
+template <typename ItemType, size_t bits_per_tag, size_t bits_per_slot,
         template <size_t, size_t, size_t > class TableType, typename HashFamily>
 std::string HashTable<ItemType, bits_per_tag, bits_per_slot, TableType, HashFamily>::Info() const {
     std::stringstream ss;
@@ -237,18 +248,7 @@ std::string HashTable<ItemType, bits_per_tag, bits_per_slot, TableType, HashFami
     }
     return ss.str();
 }
-}  // namespace cuckoofilter
-#endif  // CUCKOO_FILTER_CUCKOO_FILTER_H_
-
-
-
-
-
-
-
-
-};
-}   // namespace CuckooHash
+};  // namespace CuckooHash
 
 
 
