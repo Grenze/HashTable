@@ -10,7 +10,7 @@ using std::endl;
 
 int main() {
 
-    size_t total_items = 100000;
+    size_t total_items = 1000000;
     HashTable<size_t, 32, 64> table(total_items);
 
     auto start_time = NowNanos();
@@ -23,7 +23,9 @@ int main() {
         }
     }
     cout<<"total inserted items' count:"<<num_inserted<<endl;
+
     cout<<table.Info();
+
     uint32_t loc = 0;
     for (size_t i = 0; i < total_items; i++) {
         if (table.Find(i, &loc) == CuckooHash::Ok && loc == i) {

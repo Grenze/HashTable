@@ -69,6 +69,7 @@ private:
 
     inline void GenerateIndexTagHash(const ItemType &item, size_t *index,
                                      uint32_t *tag) const {
+        // Use leveldb's Slice to replace item.
         const uint64_t hash = CuckooHash::HashUtil::MurmurHash64A((void *) &item, sizeof(item), cuckooMurmurSeedMultiplier);
         *index = IndexHash(static_cast<uint32_t>(hash >> 32));
         *tag = TagHash((uint32_t) hash);
