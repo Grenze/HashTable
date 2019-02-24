@@ -12,9 +12,9 @@ int main() {
 
 
     // 1024*16*0.96 = 15728 (15700)
-    // 1024*16*0.96*2 = 31457 (31400)
+    // 1024*16*0.96*16 = 125829
     //size_t total_items = 1000000;
-    size_t total_items = 15700;
+    size_t total_items = 125829;
     HashTable<size_t, 32, 64> table(total_items);
 
     auto start_time = NowNanos();
