@@ -14,7 +14,7 @@
 
 namespace CuckooHash{
 
-//status returned by cuckoo hash operation
+// status returned by cuckoo hash operation
 enum Status {
     Ok = 0,
     NotFound = 1,
@@ -70,7 +70,7 @@ private:
     inline void GenerateIndexTagHash(const ItemType &item, size_t *index,
                                      uint32_t *tag) const {
         // Use leveldb's Slice to replace item.
-        const uint64_t hash = CuckooHash::HashUtil::MurmurHash64A((void *) &item, sizeof(item), cuckooMurmurSeedMultiplier);
+        const uint64_t hash = MurmurHash64A((void *) &item, sizeof(item), cuckooMurmurSeedMultiplier);
         *index = IndexHash(static_cast<uint32_t>(hash >> 32));
         *tag = TagHash((uint32_t) hash);
     }
@@ -94,10 +94,10 @@ public:
     inline bool hasVictim() const { return victim_.used; }
     explicit HashTable(const size_t max_num_keys) : num_items_(0), victim_() {
 
-        //table_->num_buckets is always a power of two greater than max_num_keys
+        // table_->num_buckets is always a power of two greater than max_num_keys
         size_t num_buckets = upperpower2(std::max<uint64_t>(1, max_num_keys / assoc));
-        //check if max_num_keys/(num_buckets*assoc) <= 0.96
-        //if not double num_buckets
+        // check if max_num_keys/(num_buckets*assoc) <= 0.96
+        // if not double num_buckets
         double frac = (double) max_num_keys / num_buckets / assoc;
         if (frac > 0.96) {
             num_buckets <<= 1;
@@ -161,7 +161,7 @@ Status HashTable<ItemType, bits_per_tag, bits_per_slot, TableType>::AddImpl(
         if (kickout) {
             curslot = oldslot;
         }
-        //beign kick out after both index tried
+        // begin kick out after both index tried
         curindex = AltIndex(curindex, static_cast<const uint32_t>(curslot >> SlotTagShift));
     }
 
@@ -220,7 +220,7 @@ Status HashTable<ItemType, bits_per_tag, bits_per_slot, TableType>::Delete(
 
     if (table_->DeleteSlotFromBucket(i1, tag) || table_->DeleteSlotFromBucket(i2, tag)) {
         num_items_--;
-        //TryEliminateVictim
+        // TryEliminateVictim
         if (victim_.used) {
             num_items_--;
             victim_.used = false;

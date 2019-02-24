@@ -17,8 +17,8 @@ namespace CuckooHash{
     template <size_t bits_per_tag, size_t bits_per_slot, size_t associativity>
     class BaseTable {
         static const size_t slotsPerBucket = associativity;
-        //plus 7 to make sure there is enough space per Bucket to store slots
-        //when bits_per_slot = 1
+        // plus 7 to make sure there is enough space per Bucket to store slots
+        // when bits_per_slot = 1
         static const size_t bytesPerBucket =
                 (bits_per_slot * slotsPerBucket + 7) >> 3;
         static const uint32_t tagMask = static_cast<const uint32_t>((1ULL << bits_per_tag) - 1);
@@ -36,7 +36,6 @@ namespace CuckooHash{
 
     public:
         explicit BaseTable(const size_t num) : num_buckets_(num) {
-            //cout<<bytesPerBucket<<" "<<paddingBuckets<<" "<<num_buckets_<<" "<<endl;
             buckets_ = new Bucket[num_buckets_ + paddingBuckets];
             memset(buckets_, 0, bytesPerBucket * (num_buckets_ + paddingBuckets));
         }
@@ -113,7 +112,7 @@ namespace CuckooHash{
             return static_cast<uint64_t >(-1);
         }
 
-        //delete slot with specific tag from bucket
+        // delete slot with specific tag from bucket
         inline bool DeleteSlotFromBucket(const size_t i, const uint32_t tag) {
             for (size_t j = 0; j < slotsPerBucket; j++) {
                 if (ReadTag(i, j) == tag) {
