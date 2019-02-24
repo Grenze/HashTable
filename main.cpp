@@ -15,6 +15,7 @@ int main() {
     // 1024*16*0.96*16 = 125829
     //size_t total_items = 1000000;
     size_t total_items = 125829;
+    // TODO: the faster hash insert proceeds, the faster to form nvm_imm_. Maybe a better hash function matters.
     HashTable<size_t, 32, 64> table(total_items);
 
     auto start_time = NowNanos();

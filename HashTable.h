@@ -197,6 +197,9 @@ Status HashTable<ItemType, bits_per_tag, bits_per_slot, TableType>::Find(
     }
 
     slot = table_->FindSlotInBuckets(i1, i2, tag);
+    // until now we can not make sure whether the key-value pair location pointed
+    // is exactly the key-value we want.
+    // Check it by comparing key.
     *location = static_cast<uint32_t >(slot);
     if (slot != -1) {
         return Ok;
