@@ -10,7 +10,11 @@ using std::endl;
 
 int main() {
 
-    size_t total_items = 1000000;
+
+    // 1024*16*0.96 = 15728 (15700)
+    // 1024*16*0.96*2 = 31457 (31400)
+    //size_t total_items = 1000000;
+    size_t total_items = 15700;
     HashTable<size_t, 32, 64> table(total_items);
 
     auto start_time = NowNanos();

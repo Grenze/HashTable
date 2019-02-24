@@ -11,8 +11,8 @@
 
 #include "BitsUtil.h"
 
-//Generally every bucket contains slots with the number of associativity,
-//slot contains key's hash tag and location of key-value pair
+// Generally every bucket contains slots with the number of associativity,
+// slot contains key's hash tag and location of key-value pair
 namespace CuckooHash{
     template <size_t bits_per_tag, size_t bits_per_slot, size_t associativity>
     class BaseTable {
