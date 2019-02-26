@@ -17,6 +17,17 @@ int main() {
     size_t total_items = 125829;
     // TODO: the faster hash insert proceeds, the faster to form nvm_imm_. Maybe a better hash function matters.
     HashTable<size_t, 32, 64> table(total_items);
+    // IF different keys have same hash value,
+    // the key inserted before will be invisible,
+    // only the latest key is accessible.
+    size_t i = 1;
+    table.Add(i, i+10);
+    table.Add(i, i+1);
+    table.Delete(i);
+    uint32_t loc1 = 0;
+    table.Find(i, &loc1);
+    std::cout<<loc1<<std::endl;
+    table.Delete(i);
 
     auto start_time = NowNanos();
 
